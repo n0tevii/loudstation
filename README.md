@@ -131,15 +131,14 @@ The menu bar icon is LoudStation's own mark, a display with a sound wave on it, 
 
 | Colour | Meaning |
 |---|---|
-| Green | Sound is working on every display |
-| Orange | A display you don't use for sound has no sound (unless **Warn About Other Displays** is off) |
-| Red | Your monitor speakers have no sound |
+| System monochrome (white on a dark menu bar) | Normal |
+| Red | Your monitor speakers have no sound, or another display is silent with **Warn About Other Displays** enabled |
+| Yellow | Checking, couldn’t check, or no display can play sound |
 | Blue | Fixing |
-| Grey | Checking, couldn't check, or no display can play sound |
 
 The menu lists your monitor speakers' display first, under **Monitor Speakers**, then any others under **Other Displays**, in a fixed order. Each display shows its status (Working, No Sound, Checking…, Couldn't Check) and how often it has been fixed. Each display has a submenu with **Set This Display as Speaker Output**, to say which display your speakers are plugged into; it also makes that display your Mac's sound output (choose it again to go back to following the sound output), and **Fix Now**, which asks first for a display without your monitor speakers.
 
-Below the list are **Check Now** (⌘R), **Monitor Speakers Follow Sound Output**, **Fix Monitor Speakers Automatically**, **Pause Fixing While Microphone Is Active** (off by default), **Warn About Other Displays** (on by default; turn it off for an icon that is only green or red, following your monitor speakers), **Check Every** (10, 20 or 60 (default) seconds, or only when displays change or the Mac wakes), **Open at Login**, **Check for Updates…**, **Check for Updates Automatically**, **Show Log** (⌘L), **LoudStation Help** (⌘?), **About LoudStation** and **Quit LoudStation** (⌘Q).
+Below the list are **Check Now** (⌘R), **Monitor Speakers Follow Sound Output**, **Fix Monitor Speakers Automatically**, **Pause Fixing While Microphone Is Active** (off by default), **Warn About Other Displays** (on by default; turn it off to have the icon follow only your monitor speakers), **Check Every** (10, 20 or 60 (default) seconds, or only when displays change or the Mac wakes), **Open at Login**, **Check for Updates…**, **Check for Updates Automatically**, **Show Log** (⌘L), **LoudStation Help** (⌘?), **About LoudStation** and **Quit LoudStation** (⌘Q).
 
 It sends a notification when it restores sound, when your monitor speakers are still silent after a fix, when it pauses automatic fixing, and when it is waiting for full-screen use (or, if you turned that on, a call) to end.
 

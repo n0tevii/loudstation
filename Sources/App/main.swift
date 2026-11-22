@@ -28,15 +28,14 @@ struct PanelState {
 }
 
 enum Tone: String {
-    case green, orange, red, blue, grey
+    case normal, red, yellow, blue
 
     var color: NSColor {
         switch self {
-        case .green: return .systemGreen
-        case .orange: return .systemOrange
+        case .normal: return .labelColor
         case .red: return .systemRed
         case .blue: return .systemBlue
-        case .grey: return .secondaryLabelColor
+        case .yellow: return .systemYellow
         }
     }
 }
@@ -109,7 +108,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
         set { defaults.set(newValue, forKey: "pauseForMicrophone") }
     }
 
-    // Off: the icon follows only the monitor speakers (green or red), never orange for the others.
+    // Off: the icon follows only the monitor speakers and ignores the other displays.
     private var warnAboutOtherDisplays: Bool {
         get { defaults.bool(forKey: "warnAboutOtherDisplays") }
         set { defaults.set(newValue, forKey: "warnAboutOtherDisplays") }
@@ -256,7 +255,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
             return (.blue, L("headline.fixing", label(for: fixingUID)))
         }
         if panels.isEmpty {
-            return (.grey, L("headline.none"))
+            return (.yellow, L("headline.none"))
         }
         let silent = panels.filter { $0.health == .noSound }
         if let watchedUID, silent.contains(where: { $0.output.uid == watchedUID }) {
@@ -265,28 +264,28 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
         // Other displays left out of the icon: only the monitor speakers' own state counts.
         if !warnAboutOtherDisplays {
             guard let speakers = panels.first(where: { $0.output.uid == watchedUID }) else {
-                return (.green, L("headline.sound_not_on_display"))
+                return (.normal, L("headline.sound_not_on_display"))
             }
             switch speakers.health {
-            case .working: return (.green, L("headline.speakers_working"))
-            case .checking: return (.grey, L("headline.checking"))
-            case .unknown: return (.grey, L("headline.speakers_couldnt_check"))
+            case .working: return (.normal, L("headline.speakers_working"))
+            case .checking: return (.yellow, L("headline.checking"))
+            case .unknown: return (.yellow, L("headline.speakers_couldnt_check"))
             case .noSound: return (.red, L("headline.speakers_silent"))
             }
         }
         if panels.contains(where: { $0.output.uid == watchedUID && $0.output.name == dellBitDepthModel && $0.health == .unknown }) {
-            return (.grey, L("headline.speakers_couldnt_check"))
+            return (.yellow, L("headline.speakers_couldnt_check"))
         }
         if !silent.isEmpty {
-            return (.orange, L("headline.others_silent", silent.count))
+            return (.red, L("headline.others_silent", silent.count))
         }
         if panels.contains(where: { $0.health == .checking }) {
-            return (.grey, L("headline.checking"))
+            return (.yellow, L("headline.checking"))
         }
         if panels.contains(where: { $0.health == .unknown }) {
-            return (.grey, L("headline.couldnt_check"))
+            return (.yellow, L("headline.couldnt_check"))
         }
-        return (.green, L("headline.all_working"))
+        return (.normal, L("headline.all_working"))
     }
 
     // Redraws the status item only when its state actually changed.
@@ -330,7 +329,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
             wave.stroke()
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = tone == .normal
         glyphs[tone] = image
         return image
     }
@@ -382,20 +381,20 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
                 var tags: [String] = []
                 if isWatched { tags.append(L("row.tag.speakers")) }
                 if panelUID == soundOutputUID && pinnedUID != nil { tags.append(L("row.tag.sound_output")) }
-                let look: (word: String, symbol: String, color: NSColor) = {
-                    if fixingUID == panelUID { return (L("status.fixing"), "arrow.triangle.2.circlepath", .systemBlue) }
+                let look: (word: String, symbol: String, tone: Tone) = {
+                    if fixingUID == panelUID { return (L("status.fixing"), "arrow.triangle.2.circlepath", .blue) }
                     switch panel.health {
-                    case .working: return (L("status.working"), "checkmark.circle.fill", .systemGreen)
-                    case .noSound: return (L("status.no_sound"), isWatched ? "xmark.circle.fill" : "exclamationmark.circle.fill", isWatched ? .systemRed : .systemOrange)
-                    case .checking: return (L("status.checking"), "circle.dotted", .secondaryLabelColor)
-                    case .unknown: return (L("status.couldnt_check"), "questionmark.circle.fill", .secondaryLabelColor)
+                    case .working: return (L("status.working"), "checkmark.circle.fill", .normal)
+                    case .noSound: return (L("status.no_sound"), isWatched ? "xmark.circle.fill" : "exclamationmark.circle.fill", .red)
+                    case .checking: return (L("status.checking"), "circle.dotted", .yellow)
+                    case .unknown: return (L("status.couldnt_check"), "questionmark.circle.fill", .yellow)
                     }
                 }()
                 let title = tags.isEmpty
                     ? L("row.plain", label(for: panelUID), look.word)
                     : L("row.with_tags", label(for: panelUID), localizedList(tags), look.word)
                 let row = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-                row.image = symbol(look.symbol, look.color, size: 12)
+                row.image = symbol(look.symbol, look.tone.color, size: 12)
                 let sub = NSMenu()
                 sub.autoenablesItems = false
                 let here = item(L("submenu.speakers_here"), #selector(watchDisplay(_:)), enabled: true)
@@ -745,8 +744,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
 
         add(L("help.icon.heading") + "\n", heading)
         let colours: [(Tone, String)] = [
-            (.green, L("help.icon.green")), (.orange, L("help.icon.orange", L("menu.warn_other_displays"))),
-            (.red, L("help.icon.red")), (.blue, L("help.icon.blue")), (.grey, L("help.icon.grey")),
+            (.normal, L("status.working")), (.red, L("status.no_sound")),
+            (.yellow, L("status.couldnt_check")), (.blue, L("status.fixing")),
         ]
         for (tone, text) in colours {
             var dot = body
@@ -763,7 +762,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
             (L("menu.follow_sound_output"), L("help.item.follow")),
             (L("menu.fix_automatically"), L("help.item.fix_automatically")),
             (L("menu.pause_for_microphone"), L("help.item.pause_for_microphone")),
-            (L("menu.warn_other_displays"), L("help.item.warn_other_displays")),
+            (L("menu.warn_other_displays"), L("menu.section.other_displays") + " · " + L("status.no_sound")),
             (L("menu.check_every"), L("help.item.check_every")),
             (L("menu.open_at_login"), L("help.item.open_at_login", appName)),
             (L("menu.check_updates"), L("help.item.check_updates")),
