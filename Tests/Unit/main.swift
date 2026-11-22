@@ -258,6 +258,18 @@ policy = settled()
 fixOnce(&policy, from: 0, automatic: true, result: .stillSilent)
 expectEqual(policy.failedFixes["A"], 1, "an automatic fix that fails counts, whatever path started it")
 
+section("Dell post-repair playback verification")
+expectEqual(dellPlaybackOutcome(true).status, .fixed, "verified playback")
+expectEqual(dellPlaybackOutcome(false).status, .stillStuck, "confirmed silence")
+expectEqual(dellPlaybackOutcome(nil).status, .unverified, "missing playback verdict")
+expectEqual(dellPlaybackOutcome(nil).status.exitCode, 4, "could not check")
+policy = settled()
+fixOnce(&policy, from: 0, result: .stillSilent)
+fixOnce(&policy, from: 70, result: .unverified)
+expectEqual(policy.failedFixes["A"], 1, "unknown playback preserves earlier failure count")
+expectEqual(policy.fixTimes.count, 2, "unverified repair still counts against the rate limit")
+expect(policy.needsFinalProbe("A", now: at(81)), "pre-repair silence is no longer fresh")
+
 section("Auto-fix never touches an unfixable setup")
 policy = settled()
 expectEqual(silent(&policy, 0, blocker: "it is the only screen you can see"),

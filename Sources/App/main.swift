@@ -274,6 +274,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
             case .noSound: return (.red, L("headline.speakers_silent"))
             }
         }
+        if panels.contains(where: { $0.output.uid == watchedUID && $0.output.name == dellBitDepthModel && $0.health == .unknown }) {
+            return (.grey, L("headline.speakers_couldnt_check"))
+        }
         if !silent.isEmpty {
             return (.orange, L("headline.others_silent", silent.count))
         }
@@ -1348,7 +1351,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
         ignoreEventsUntil = Date().addingTimeInterval(5)
         let target = label(for: panelUID)
         if let index = panels.firstIndex(where: { $0.output.uid == panelUID }) {
-            panels[index].health = outcome.status == .fixed ? .working : .noSound
+            switch outcome.status {
+            case .fixed: panels[index].health = .working
+            case .unverified: panels[index].health = .unknown
+            case .notAttempted where panels[index].output.name == dellBitDepthModel:
+                panels[index].health = .unknown
+            default: panels[index].health = .noSound
+            }
             panels[index].lastProbe = Date()
         }
         let collateral = outcome.collateral.isEmpty ? nil : localizedList(outcome.collateral)
@@ -1362,7 +1371,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
         case .stillStuck:
             note = outcome.message
             if automatic { notify(L("notify.still_silent.title"), L("notify.still_silent.body", target)) }
-        case .noDisplay, .notAttempted:
+        case .unverified, .noDisplay, .notAttempted:
             note = outcome.message
         case .cycleFailed:
             note = outcome.message
@@ -1371,6 +1380,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
         }
         let result: AutoFixPolicy.FixResult
         switch outcome.status {
+        case .unverified: result = .unverified
         case .fixed: result = .fixed
         case .stillStuck, .cycleFailed: result = .stillSilent
         case .noDisplay, .notAttempted: result = .notAttempted

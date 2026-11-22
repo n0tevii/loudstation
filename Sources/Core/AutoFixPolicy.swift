@@ -67,6 +67,7 @@ struct AutoFixPolicy {
         case fixed
         // The display was switched off and on and is still silent.
         case stillSilent
+        case unverified
         // Nothing was switched off (a guard, the lock, an unidentifiable screen); not a failure.
         case notAttempted
     }
@@ -187,6 +188,10 @@ struct AutoFixPolicy {
         switch result {
         case .fixed:
             failedFixes[uid] = nil
+            silentSince[uid] = nil
+            lastSilent[uid] = nil
+        case .unverified:
+            // Keep the attempt in the rate limit. Require fresh silence before another fix.
             silentSince[uid] = nil
             lastSilent[uid] = nil
         case .stillSilent:

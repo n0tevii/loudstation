@@ -869,17 +869,19 @@ func isDisplayAudio(_ dev: AudioObjectID) -> Bool {
 enum RepairStatus {
     case fixed
     case stillStuck
+    case unverified
     case noDisplay
     // Nothing was switched off (a guard, the lock, or an earlier stranded display).
     case notAttempted
     // Switched off, but it has not come back on yet.
     case cycleFailed
 
-    // The CLI's exit code: 0 fixed, 1 still silent, 2 no such display, 3 not switched or failed.
+    // Match the exit codes documented by the CLI.
     var exitCode: Int32 {
         switch self {
         case .fixed: return 0
         case .stillStuck: return 1
+        case .unverified: return 4
         case .noDisplay: return 2
         case .notAttempted, .cycleFailed: return 3
         }
@@ -928,10 +930,21 @@ private func repairDellBitDepth(_ dev: AudioObjectID, seconds: Double) -> Repair
     guard toggled else {
         return RepairOutcome(status: .notAttempted, message: "Dell audio format reset failed; see the log.", collateral: [])
     }
-    let healthy = device(withUID: targetUID).flatMap { probe($0, seconds: seconds) } == true
-    say(healthy ? "Dell playback verified after bit-depth reset." : "Dell playback could not be verified after bit-depth reset.")
-    return RepairOutcome(status: healthy ? .fixed : .stillStuck,
-                         message: healthy ? L("outcome.fixed", name) : "Dell playback could not be verified.", collateral: [])
+    let playback = device(withUID: targetUID).flatMap { probe($0, seconds: seconds) }
+    let outcome = dellPlaybackOutcome(playback)
+    say(outcome.message)
+    return outcome
+}
+
+func dellPlaybackOutcome(_ playback: Bool?) -> RepairOutcome {
+    switch playback {
+    case true?:
+        return RepairOutcome(status: .fixed, message: L("outcome.fixed", dellBitDepthModel), collateral: [])
+    case false?:
+        return RepairOutcome(status: .stillStuck, message: L("outcome.still_silent", dellBitDepthModel), collateral: [])
+    case nil:
+        return RepairOutcome(status: .unverified, message: "Dell playback could not be verified.", collateral: [])
+    }
 }
 
 // Cycles the display behind `dev`, re-probes it, then probes every other display-audio
