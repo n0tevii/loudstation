@@ -36,6 +36,15 @@ expect() {
   fi
 }
 
+echo "- App includes the signed Dell audio-format helper"
+helper="$app/Contents/Helpers/DellAudioReset"
+if [ -x "$helper" ] && /usr/bin/codesign --verify --strict "$helper"; then
+  passed=$((passed + 1))
+else
+  echo "FAIL: missing or invalid DellAudioReset helper"
+  failed=$((failed + 1))
+fi
+
 echo "- Help and version"
 expect 0 '^loudstation [0-9]+\.[0-9]+\.[0-9]+$' --version
 expect 0 'Exit codes' --help

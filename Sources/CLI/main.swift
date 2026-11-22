@@ -13,7 +13,7 @@ let usage = """
 
   status (default)  Check every display's sound and print whether it works; changes nothing
   fix               Check the sound output; if it is a display with no sound, switch that display
-                    off and on (about 3s of black screen), check again, and report any other
+                    off and on (Dell U4021QW: toggle audio bit depth instead), check again, and report any other
                     display the fix knocked out (never touched)
   relink            Like fix, but without checking first
   list              Audio outputs, the displays behind them, and all displays

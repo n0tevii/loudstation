@@ -22,10 +22,13 @@ build/$(COMMAND): $(CORE) Sources/CLI/main.swift
 	codesign --force --options runtime --sign - $@
 
 # A stamp file stands in for the bundle, which make cannot track as a whole.
-$(APP_STAMP): $(CORE) Sources/App/main.swift Resources/Info.plist Resources/AppIcon.icns $(LPROJ)
+$(APP_STAMP): Sources/Helpers/DellAudioReset.c $(CORE) Sources/App/main.swift Resources/Info.plist Resources/AppIcon.icns $(LPROJ)
 	rm -rf "build/$(APP_NAME)"
 	mkdir -p "build/$(APP_NAME)/Contents/MacOS" "build/$(APP_NAME)/Contents/Resources"
 	$(SWIFTC) -o "build/$(APP_NAME)/Contents/MacOS/$(EXECUTABLE)" $(CORE) Sources/App/main.swift
+	mkdir -p "build/$(APP_NAME)/Contents/Helpers"
+	$(CC) -target arm64-apple-macos13 -Wall -Wextra -Werror Sources/Helpers/DellAudioReset.c -framework CoreAudio -framework CoreFoundation -o "build/$(APP_NAME)/Contents/Helpers/DellAudioReset"
+	codesign --force --options runtime --sign - "build/$(APP_NAME)/Contents/Helpers/DellAudioReset"
 	cp Resources/Info.plist "build/$(APP_NAME)/Contents/Info.plist"
 	cp Resources/AppIcon.icns "build/$(APP_NAME)/Contents/Resources/"
 	cp -R Resources/*.lproj "build/$(APP_NAME)/Contents/Resources/"

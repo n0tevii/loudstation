@@ -402,7 +402,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
                 let fix = item(isWatched ? L("submenu.fix_now") : L("submenu.fix_now_confirm"), #selector(fixDisplay(_:)), enabled: !busy)
                 fix.representedObject = panelUID
                 sub.addItem(fix)
-                sub.addItem(info(L("submenu.hint_blackout")))
+                sub.addItem(info(panel.output.name == dellBitDepthModel ? "Reset audio bit depth" : L("submenu.hint_blackout")))
                 if !isWatched { sub.addItem(info(L("submenu.hint_others"))) }
                 if let counts = stats(for: panelUID) { sub.addItem(info(counts)) }
                 if let lastProbe = panel.lastProbe { sub.addItem(info(L("submenu.checked", relativeTime(lastProbe)))) }
@@ -558,7 +558,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             alert.messageText = L("confirm.title", label(for: panelUID))
-            alert.informativeText = L("confirm.body", label(for: panelUID))
+            alert.informativeText = device(withUID: panelUID).map { name(of: $0) == dellBitDepthModel } == true
+                ? "Reset Dell audio bit depth?" : L("confirm.body", label(for: panelUID))
             alert.addButton(withTitle: L("confirm.fix"))
             alert.addButton(withTitle: L("confirm.cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -1238,7 +1239,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
               panels.first(where: { $0.output.uid == watchedUID })?.health == .noSound else { return }
         let target = label(for: watchedUID)
         let display = display(forAudioUID: watchedUID)
-        let blocker = display.map { cycleBlocker($0) } ?? "its screen cannot be identified"
+        let usesBitDepth = device(withUID: watchedUID).map { name(of: $0) == dellBitDepthModel } == true
+        let blocker: String? = usesBitDepth ? nil : display.map { cycleBlocker($0) } ?? "its screen cannot be identified"
         let limit = policy.timing.maximumFixesPerWindow
         switch policy.decide(watchedUID, now: Date(), blocker: blocker) {
         case .blocked(.gaveUp):
@@ -1255,8 +1257,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
             setNote(L("note.confirming"), log: "Waiting to confirm \(target) is silent before fixing.")
             scheduleRecheck(after: seconds + 0.5)
         case .fix:
-            guard let display else { return }
-            if let deferral = deferralReason(for: display) {
+            if let display, let deferral = deferralReason(for: display) {
                 switch deferral {
                 case .pointer:
                     scheduleRecheck(after: 5)

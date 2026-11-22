@@ -454,12 +454,10 @@ enum PanelLookup {
     case notFound
 }
 
-// Every external panel the DCP drives: its AppleCLCD2 framebuffer carries IOMFBUUID, which
-// equals the CoreAudio UID of that panel's DCP audio device, alongside the EDID
-// ProductAttributes, whose serial matches CGDisplaySerialNumber.
-func externalPanels() -> [(uid: String, identity: PanelIdentity)] {
+// The framebuffer carries the DCP audio UID alongside the display's EDID identity.
+private func externalPanels(matching serviceClass: String) -> [(uid: String, identity: PanelIdentity)] {
     var iterator: io_iterator_t = 0
-    guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleCLCD2"), &iterator) == KERN_SUCCESS else { return [] }
+    guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(serviceClass), &iterator) == KERN_SUCCESS else { return [] }
     defer { IOObjectRelease(iterator) }
     var panels: [(uid: String, identity: PanelIdentity)] = []
     while true {
@@ -477,6 +475,12 @@ func externalPanels() -> [(uid: String, identity: PanelIdentity)] {
         panels.append((panelUID, PanelIdentity(vendor: vendor, model: model, serial: serial)))
     }
     return panels
+}
+
+func externalPanels() -> [(uid: String, identity: PanelIdentity)] {
+    let panels = externalPanels(matching: "AppleCLCD2")
+    // Some Macs expose the same hardware properties through framebuffer shims.
+    return panels.isEmpty ? externalPanels(matching: "IOMobileFramebufferShim") : panels
 }
 
 // Two identical monitors from the same production week can share an IOMFBUUID, so more than
@@ -889,6 +893,47 @@ struct RepairOutcome {
     let collateral: [String]
 }
 
+let dellBitDepthModel = "DELL U4021QW"
+
+private func repairDellBitDepth(_ dev: AudioObjectID, seconds: Double) -> RepairOutcome {
+    let name = name(of: dev)
+    guard let targetUID = uid(of: dev) else {
+        return RepairOutcome(status: .notAttempted, message: L("outcome.unknown_display", name), collateral: [])
+    }
+    let app: URL?
+    if Bundle.main.bundleURL.pathExtension == "app" {
+        app = Bundle.main.bundleURL
+    } else {
+        let builtApp = Bundle.main.executableURL?.resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent(appBundleName)
+        app = ([builtApp].compactMap { $0 } + appBundleCandidates()).first(where: isTrustedAppBundle)
+    }
+    let toggled = withCycleLock {
+        guard let app else { return false }
+        let process = Process()
+        process.executableURL = app.appendingPathComponent("Contents/Helpers/DellAudioReset")
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            let output = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            say(String(decoding: output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+            return process.terminationStatus == 0
+        } catch {
+            say("Cannot start Dell bit-depth repair: \(error)")
+            return false
+        }
+    }
+    guard toggled else {
+        return RepairOutcome(status: .notAttempted, message: "Dell audio format reset failed; see the log.", collateral: [])
+    }
+    let healthy = device(withUID: targetUID).flatMap { probe($0, seconds: seconds) } == true
+    say(healthy ? "Dell playback verified after bit-depth reset." : "Dell playback could not be verified after bit-depth reset.")
+    return RepairOutcome(status: healthy ? .fixed : .stillStuck,
+                         message: healthy ? L("outcome.fixed", name) : "Dell playback could not be verified.", collateral: [])
+}
+
 // Cycles the display behind `dev`, re-probes it, then probes every other display-audio
 // output and reports, without touching, any that the cycle knocked out.
 // `othersToCheck` limits the check for collateral damage to these displays (those working
@@ -897,6 +942,7 @@ func repair(_ dev: AudioObjectID, probeSeconds: Double, hold: Double, settle req
             othersToCheck: Set<String>? = nil) -> RepairOutcome {
     let settle = min(max(requested, settleRange.lowerBound), settleRange.upperBound)
     let devName = name(of: dev)
+    if devName == dellBitDepthModel { return repairDellBitDepth(dev, seconds: probeSeconds) }
     guard let devUID = uid(of: dev), let display = display(forAudioUID: devUID) else {
         say("Could not tell which screen '\(devName)' is, so did not switch anything off.", echo: false)
         return RepairOutcome(status: .noDisplay, message: L("outcome.unknown_display", devName), collateral: [])
