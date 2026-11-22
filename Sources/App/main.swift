@@ -553,13 +553,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
     }
 
     @objc private func fixDisplay(_ sender: NSMenuItem) {
-        guard let panelUID = sender.representedObject as? String else { return }
+        guard let panelUID = sender.representedObject as? String,
+              let panel = panels.first(where: { $0.output.uid == panelUID }) else { return }
         if panelUID != watchedUID {
+            let target = label(for: panelUID)
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
-            alert.messageText = L("confirm.title", label(for: panelUID))
-            alert.informativeText = device(withUID: panelUID).map { name(of: $0) == dellBitDepthModel } == true
-                ? "Reset Dell audio bit depth?" : L("confirm.body", label(for: panelUID))
+            alert.messageText = L("confirm.title", target)
+            alert.informativeText = panel.output.name == dellBitDepthModel
+                ? "Reset Dell audio bit depth?" : L("confirm.body", target)
             alert.addButton(withTitle: L("confirm.fix"))
             alert.addButton(withTitle: L("confirm.cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -1236,11 +1238,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
     // why. The rules live in AutoFixPolicy (Core), where they are unit-tested.
     private func considerAutoFix(reason: String) {
         guard autoFix, !busy, !displaysAsleep, sessionActive, let watchedUID,
-              panels.first(where: { $0.output.uid == watchedUID })?.health == .noSound else { return }
+              let panel = panels.first(where: { $0.output.uid == watchedUID }), panel.health == .noSound else { return }
         let target = label(for: watchedUID)
-        let display = display(forAudioUID: watchedUID)
-        let usesBitDepth = device(withUID: watchedUID).map { name(of: $0) == dellBitDepthModel } == true
-        let blocker: String? = usesBitDepth ? nil : display.map { cycleBlocker($0) } ?? "its screen cannot be identified"
+        lazy var display = display(forAudioUID: watchedUID)
+        let blocker: String? = panel.output.name == dellBitDepthModel ? nil : display.map(cycleBlocker) ?? "its screen cannot be identified"
         let limit = policy.timing.maximumFixesPerWindow
         switch policy.decide(watchedUID, now: Date(), blocker: blocker) {
         case .blocked(.gaveUp):
